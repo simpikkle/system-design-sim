@@ -4,6 +4,7 @@ import { STATUS_COLOR } from '../statusColors'
 import type { FlowEdge } from '../../store/graphStore'
 
 const IDLE_COLOR = 'var(--color-ink-faint)'
+
 const DOT_COUNT = 3
 
 export function TrafficEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<FlowEdge>) {

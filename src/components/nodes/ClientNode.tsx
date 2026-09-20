@@ -1,12 +1,16 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { useSimStore } from '../../store/simStore'
+import { useSimStore, type RunStatus } from '../../store/simStore'
 import type { FlowNode } from '../../store/graphStore'
 import { HANDLE_CLASS } from '../handleStyle'
 
-const TITLE: Record<string, string> = {
-  idle: 'Click to run the simulation',
-  running: 'Click to pause',
-  paused: 'Click to resume',
+function titleFor(status: RunStatus): string | undefined {
+  if (status === 'idle') return 'Click to run the simulation'
+
+  if (status === 'running') return 'Click to pause'
+
+  if (status === 'paused') return 'Click to resume'
+
+  return undefined
 }
 
 export function ClientNode({ id }: NodeProps<FlowNode>) {
@@ -18,7 +22,7 @@ export function ClientNode({ id }: NodeProps<FlowNode>) {
   return (
     <div
       className={`relative flex h-[72px] w-[72px] items-center justify-center ${clickable ? 'cursor-pointer transition-transform hover:scale-110' : ''}`}
-      title={TITLE[status]}
+      title={titleFor(status)}
     >
       {status === 'running' ? (
         <svg viewBox="0 0 24 24" className="h-[72px] w-[72px] text-accent" fill="currentColor">

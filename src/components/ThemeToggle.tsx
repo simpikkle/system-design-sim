@@ -3,6 +3,7 @@ import { MoonIcon, SunIcon } from './icons'
 
 export function ThemeToggle() {
   const { theme, toggle } = useThemeStore()
+
   return (
     <button
       onClick={toggle}

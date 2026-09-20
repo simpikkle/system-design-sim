@@ -13,6 +13,7 @@ interface NodeShellProps {
 
 export function NodeShell({ icon, name, kindLabel, selected, status, children }: NodeShellProps) {
   const dead = status === 'critical'
+
   return (
     <div
       className="w-[220px] rounded-xl border bg-surface-1 px-4 py-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-colors"

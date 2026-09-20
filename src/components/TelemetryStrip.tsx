@@ -5,7 +5,9 @@ import { Sparkline } from './Sparkline'
 
 function severity(value: number, warn: number, max: number): Status {
   if (value > max) return 'critical'
+
   if (value > warn) return 'warning'
+
   return 'good'
 }
 

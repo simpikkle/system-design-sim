@@ -11,22 +11,25 @@ const flatScenario = (rps: number): Scenario => ({
   thresholds: { maxP99LatencyMs: 500, maxErrorRatePct: 2, warnP99LatencyMs: 300, warnErrorRatePct: 0.5 },
 })
 
-const chain = (): { nodes: GraphNode[]; edges: GraphEdge[] } => ({
-  nodes: [
+const chain = () => {
+  const nodes: GraphNode[] = [
     { id: 'c', kind: 'client', name: 'Client' },
     { id: 'lb', kind: 'loadBalancer', name: 'LB' },
     { id: 's1', kind: 'server', name: 'Server 1', size: 'small' },
     { id: 's2', kind: 'server', name: 'Server 2', size: 'small' },
     { id: 'db', kind: 'db', name: 'DB', size: 'small' },
-  ],
-  edges: [
+  ]
+
+  const edges: GraphEdge[] = [
     { id: 'e1', source: 'c', target: 'lb' },
     { id: 'e2', source: 'lb', target: 's1' },
     { id: 'e3', source: 'lb', target: 's2' },
     { id: 'e4', source: 's1', target: 'db' },
     { id: 'e5', source: 's2', target: 'db' },
-  ],
-})
+  ]
+
+  return { nodes, edges }
+}
 
 describe('simulateAt', () => {
   it('splits load evenly across servers behind a round-robin LB', () => {

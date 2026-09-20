@@ -1,5 +1,7 @@
 export type NodeKind = 'client' | 'loadBalancer' | 'server' | 'db'
+
 export type Size = 'small' | 'medium' | 'large'
+
 export type Status = 'good' | 'warning' | 'critical'
 
 export interface GraphNode {

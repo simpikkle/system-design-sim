@@ -5,6 +5,7 @@ import { trafficRamp } from '../simulation/traffic'
 import type { GraphEdge, GraphNode, Scenario, ScoreResult, SimSnapshot } from '../simulation/types'
 
 export const SIM_SPEED = 2.5 // sim-seconds per wall-clock second
+
 export const HISTORY_SAMPLE_SEC = 0.2
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'done'
@@ -88,11 +89,13 @@ export const useSimStore = create<SimState>((set, get) => ({
 
   advance: (dtWallSec) => {
     const { status, runGraph, activeScenario, simTime, history } = get()
+
     if (status !== 'running' || !runGraph || !activeScenario) return
     const nextTime = Math.min(activeScenario.durationSec, simTime + dtWallSec * SIM_SPEED)
     const snapshot = simulateAt(runGraph.nodes, runGraph.edges, activeScenario, nextTime)
 
     const lastSampled = history[history.length - 1]
+
     const nextHistory =
       !lastSampled || nextTime - lastSampled.tSec >= HISTORY_SAMPLE_SEC || nextTime >= activeScenario.durationSec
         ? [...history, snapshot]
@@ -113,6 +116,7 @@ export const useSimStore = create<SimState>((set, get) => ({
 
   scrub: (tSec) => {
     const { runGraph, activeScenario } = get()
+
     if (!runGraph || !activeScenario) return
     set({ isScrubbing: true, displayed: simulateAt(runGraph.nodes, runGraph.edges, activeScenario, tSec) })
   },

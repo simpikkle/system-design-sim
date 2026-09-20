@@ -25,9 +25,11 @@ export interface EdgeData extends Record<string, unknown> {
 }
 
 export type FlowNode = Node<NodeData>
+
 export type FlowEdge = Edge<EdgeData>
 
 let nodeSeq = 0
+
 const nextId = (kind: string) => `${kind}-${++nodeSeq}`
 
 const initialNodes: FlowNode[] = [
@@ -72,23 +74,29 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const { nodes, edges } = get()
     const source = nodes.find((n) => n.id === connection.source)
     const target = nodes.find((n) => n.id === connection.target)
+
     if (!source || !target) return
+
     if (!isValidConnection(source.data.kind, target.data.kind)) return
     const simStatus = useSimStore.getState().status
     const addedAtSimTime = simStatus === 'paused' ? useSimStore.getState().simTime : undefined
+
     const newEdge: FlowEdge = {
       ...connection,
       id: `e-${connection.source}-${connection.target}`,
       type: 'traffic',
       data: { addedAtSimTime },
     }
+
     set({ edges: addEdge(newEdge, edges) })
   },
 
   addNode: (kind, position) => {
     const id = nextId(kind)
     const name = `${kind === 'loadBalancer' ? 'Load Balancer' : kind[0].toUpperCase() + kind.slice(1)} ${nodeSeq}`
-    const data: NodeData = { kind, name, ...(kind === 'server' || kind === 'db' ? { size: defaultSizeFor(kind) } : {}) }
+    const data: NodeData = { kind, name }
+
+    if (kind === 'server' || kind === 'db') data.size = defaultSizeFor(kind)
     set({ nodes: [...get().nodes, { id, type: kind, position, data }] })
   },
 
@@ -110,7 +118,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   resetGraph: () => set({ nodes: initialNodes, edges: initialEdges, selectedNodeId: null }),
 }))
 
-export function toSimGraph(nodes: FlowNode[], edges: FlowEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export interface SimGraph {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
+export function toSimGraph(nodes: FlowNode[], edges: FlowEdge[]): SimGraph {
   return {
     nodes: nodes.map((n) => ({ id: n.id, kind: n.data.kind, name: n.data.name, size: n.data.size })),
     edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, addedAtSimTime: e.data?.addedAtSimTime })),

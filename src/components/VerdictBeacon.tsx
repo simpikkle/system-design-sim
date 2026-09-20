@@ -9,6 +9,7 @@ const VERDICT_COLOR: Record<Verdict, string> = {
   yellow: 'var(--color-warning)',
   red: 'var(--color-critical)',
 }
+
 const VERDICT_LABEL: Record<Verdict, string> = { green: 'PASS', yellow: 'MARGINAL', red: 'FAIL' }
 
 export function VerdictBeacon() {

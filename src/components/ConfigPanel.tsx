@@ -5,6 +5,7 @@ import type { Size } from '../simulation/types'
 import { ClientIcon, DbIcon, LoadBalancerIcon, ServerIcon } from './icons'
 
 const SIZES: Size[] = ['small', 'medium', 'large']
+
 const SIZE_LABEL: Record<Size, string> = { small: 'S', medium: 'M', large: 'L' }
 
 const ICONS = { client: ClientIcon, loadBalancer: LoadBalancerIcon, server: ServerIcon, db: DbIcon }

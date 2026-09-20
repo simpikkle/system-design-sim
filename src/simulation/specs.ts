@@ -1,6 +1,7 @@
 import type { NodeKind, Size, SizeSpec } from './types'
 
 export const LB_LATENCY_MS = 2
+
 export const CLIENT_LATENCY_MS = 0
 
 /** Every number here is the one true source — shown to the user, never hidden. */

@@ -13,6 +13,7 @@ import { DbNode } from './nodes/DbNode'
 import { TrafficEdge } from './edges/TrafficEdge'
 
 const nodeTypes = { client: ClientNode, loadBalancer: LoadBalancerNode, server: ServerNode, db: DbNode }
+
 const edgeTypes = { traffic: TrafficEdge }
 
 export function Canvas() {
@@ -24,7 +25,9 @@ export function Canvas() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault()
+      // SAFETY: this key is only ever set by Palette's onDragStart, always to a NodeKind literal.
       const kind = event.dataTransfer.getData('application/x-node-kind') as NodeKind
+
       if (!kind) return
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
       addNode(kind, position)
@@ -36,7 +39,9 @@ export function Canvas() {
     (connection: Connection | Edge) => {
       const source = nodes.find((n) => n.id === connection.source)
       const target = nodes.find((n) => n.id === connection.target)
+
       if (!source || !target) return false
+
       return validateKinds(source.data.kind, target.data.kind)
     },
     [nodes],
@@ -56,9 +61,12 @@ export function Canvas() {
         onNodeClick={(_, node) => {
           if (node.data.kind === 'client') {
             if (status === 'idle') return run()
+
             if (status === 'running') return pause()
+
             if (status === 'paused') return resume()
           }
+
           setSelectedNodeId(node.id)
         }}
         onPaneClick={() => setSelectedNodeId(null)}

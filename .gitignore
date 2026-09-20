@@ -16,3 +16,7 @@ dist-ssr
 node_modules/.tmp
 
 .claude/settings.local.json
+.claude/skills
+
+# Tool-managed skill installs, reproducible from skills-lock.json
+.agents

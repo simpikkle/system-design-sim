@@ -8,6 +8,7 @@ import { HANDLE_CLASS } from '../handleStyle'
 
 export function ServerNode({ id, data, selected }: NodeProps<FlowNode>) {
   const stat = useSimStore((s) => s.displayed?.nodeStats[id])
+
   return (
     <NodeShell
       icon={<ServerIcon className="h-full w-full" />}

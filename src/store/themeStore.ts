@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 export type Theme = 'light' | 'dark'
+
 const STORAGE_KEY = 'sds-theme'
 
 function applyTheme(theme: Theme) {

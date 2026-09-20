@@ -12,6 +12,7 @@ export function UtilizationBar({ utilization, status, latencyMs }: UtilizationBa
   const displayPct = Math.min(100, Math.round(utilization * 100))
   const color = STATUS_COLOR[status]
   const dead = status === 'critical'
+
   return (
     <div>
       <div className="flex items-center justify-between text-xs text-ink-muted">

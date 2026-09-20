@@ -11,17 +11,23 @@ export function useSimulationClock() {
   useEffect(() => {
     if (status !== 'running') {
       lastFrame.current = null
+
       return
     }
+
     let raf = 0
+
     const loop = (now: number) => {
       if (lastFrame.current !== null && !isScrubbing) {
         advance((now - lastFrame.current) / 1000)
       }
+
       lastFrame.current = now
       raf = requestAnimationFrame(loop)
     }
+
     raf = requestAnimationFrame(loop)
+
     return () => cancelAnimationFrame(raf)
   }, [status, advance, isScrubbing])
 }

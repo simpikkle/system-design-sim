@@ -12,8 +12,11 @@ import type {
 } from './types'
 
 const WARN_UTILIZATION = 0.8
+
 const DEAD_UTILIZATION = 1
+
 const MAX_UTILIZATION_FOR_LATENCY = 0.98
+
 /** Newly wired edges ramp from 0 to their fair share over this many sim-seconds, instead of taking it instantly. */
 const EDGE_RAMP_IN_SEC = 4
 
@@ -22,18 +25,26 @@ function edgeFanOutWeights(outEdges: GraphEdge[], tSec: number): number[] {
   const weights = outEdges.map((e) => {
     if (e.addedAtSimTime == null) return 1
     const dt = tSec - e.addedAtSimTime
+
     if (dt <= 0) return 0
+
     if (dt >= EDGE_RAMP_IN_SEC) return 1
+
     return dt / EDGE_RAMP_IN_SEC
   })
+
   const total = weights.reduce((s, w) => s + w, 0)
+
   if (total <= 0) return outEdges.map(() => 1 / outEdges.length)
+
   return weights.map((w) => w / total)
 }
 
 function statusForUtilization(utilization: number): Status {
   if (utilization >= DEAD_UTILIZATION) return 'critical'
+
   if (utilization >= WARN_UTILIZATION) return 'warning'
+
   return 'good'
 }
 
@@ -42,21 +53,32 @@ function topoOrder(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const inDegree = new Map(nodes.map((n) => [n.id, 0]))
   const outEdges = new Map<string, GraphEdge[]>(nodes.map((n) => [n.id, []]))
+
   for (const e of edges) {
     if (!byId.has(e.source) || !byId.has(e.target)) continue
     inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1)
     outEdges.get(e.source)?.push(e)
   }
-  const queue = nodes.filter((n) => (inDegree.get(n.id) ?? 0) === 0).map((n) => n.id)
+
+  const queue: string[] = []
+
+  for (const n of nodes) {
+    if ((inDegree.get(n.id) ?? 0) === 0) queue.push(n.id)
+  }
+
   const order: GraphNode[] = []
+
   while (queue.length) {
     const id = queue.shift()!
     order.push(byId.get(id)!)
+
     for (const e of outEdges.get(id) ?? []) {
       inDegree.set(e.target, (inDegree.get(e.target) ?? 0) - 1)
+
       if (inDegree.get(e.target) === 0) queue.push(e.target)
     }
   }
+
   return order
 }
 
@@ -67,14 +89,18 @@ interface LatencySample {
 
 function weightedPercentile(samples: LatencySample[], p: number): number {
   const total = samples.reduce((s, x) => s + x.rps, 0)
+
   if (total <= 0) return 0
   const sorted = [...samples].sort((a, b) => a.latencyMs - b.latencyMs)
   const target = total * p
   let cumulative = 0
+
   for (const s of sorted) {
     cumulative += s.rps
+
     if (cumulative >= target) return s.latencyMs
   }
+
   return sorted[sorted.length - 1]?.latencyMs ?? 0
 }
 
@@ -87,6 +113,7 @@ export function simulateAt(
   const order = topoOrder(nodes, edges)
   const inEdgesByTarget = new Map<string, GraphEdge[]>(nodes.map((n) => [n.id, []]))
   const outEdgesBySource = new Map<string, GraphEdge[]>(nodes.map((n) => [n.id, []]))
+
   for (const e of edges) {
     inEdgesByTarget.get(e.target)?.push(e)
     outEdgesBySource.get(e.source)?.push(e)
@@ -137,10 +164,13 @@ export function simulateAt(
     }
 
     const survival = incomingRps > 0 ? acceptedRps / incomingRps : 1
+
     const inbound: LatencySample[] = inEdges.flatMap((e) => {
       const fraction = edgeFraction.get(e.id) ?? 1
+
       return (samplesBefore.get(e.source) ?? []).map((s) => ({ rps: s.rps * fraction, latencyMs: s.latencyMs }))
     })
+
     const base: LatencySample[] = node.kind === 'client' ? [{ rps: offeredRps, latencyMs: 0 }] : inbound
     samplesBefore.set(
       node.id,
@@ -155,6 +185,7 @@ export function simulateAt(
 
   // An edge is colored by what its source already knows, not by the fate awaiting it downstream.
   const edgeStats: Record<string, EdgeStat> = {}
+
   for (const e of edges) {
     const rps = edgeRps.get(e.id) ?? 0
     const sourceStat = nodeStats.get(e.source)
@@ -176,8 +207,11 @@ export function simulateAt(
 /** The verdict this instant would earn on its own — used for the live beacon while a run is in flight. */
 export function snapshotVerdict(snap: SimSnapshot, scenario: Scenario): Verdict {
   const { maxP99LatencyMs, maxErrorRatePct, warnP99LatencyMs, warnErrorRatePct } = scenario.thresholds
+
   if (snap.errorRatePct > maxErrorRatePct || snap.p99LatencyMs > maxP99LatencyMs) return 'red'
+
   if (snap.errorRatePct > warnErrorRatePct || snap.p99LatencyMs > warnP99LatencyMs) return 'yellow'
+
   return 'green'
 }
 
@@ -192,11 +226,15 @@ export function score(history: SimSnapshot[], scenario: Scenario): ScoreResult {
 
   if (peakError > maxErrorRatePct || peakP99 > maxP99LatencyMs) {
     verdict = 'red'
+
     if (peakError > maxErrorRatePct) reasons.push(`peak error rate ${peakError.toFixed(1)}% exceeds ${maxErrorRatePct}% limit`)
+
     if (peakP99 > maxP99LatencyMs) reasons.push(`peak p99 latency ${peakP99.toFixed(0)}ms exceeds ${maxP99LatencyMs}ms limit`)
   } else if (peakError > warnErrorRatePct || peakP99 > warnP99LatencyMs) {
     verdict = 'yellow'
+
     if (peakError > warnErrorRatePct) reasons.push(`peak error rate ${peakError.toFixed(1)}% is close to the ${maxErrorRatePct}% limit`)
+
     if (peakP99 > warnP99LatencyMs) reasons.push(`peak p99 latency ${peakP99.toFixed(0)}ms is close to the ${maxP99LatencyMs}ms limit`)
   } else {
     reasons.push(`peak p99 latency ${peakP99.toFixed(0)}ms, peak error rate ${peakError.toFixed(1)}% — within budget`)
