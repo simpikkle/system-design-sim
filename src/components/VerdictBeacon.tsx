@@ -44,10 +44,16 @@ export function VerdictBeacon() {
       </div>
       <div className="leading-tight">
         <div className="font-display text-[13px] font-semibold tracking-wide" style={{ color: verdict ? color : 'var(--color-ink-faint)' }}>
-          {status === 'idle' ? 'STANDING BY' : verdict ? VERDICT_LABEL[verdict] : 'READING…'}
+          {status === 'idle' ? 'STANDING BY' : status === 'paused' ? 'PAUSED' : verdict ? VERDICT_LABEL[verdict] : 'READING…'}
         </div>
         <div className="max-w-[260px] truncate font-mono text-[10px] text-ink-faint">
-          {status === 'done' && scoreResult ? scoreResult.reasons[0] : status === 'running' ? 'simulation in progress' : 'run the scenario to score this design'}
+          {status === 'done' && scoreResult
+            ? scoreResult.reasons[0]
+            : status === 'running'
+              ? 'simulation in progress'
+              : status === 'paused'
+                ? 'edit the design, then resume'
+                : 'run the scenario to score this design'}
         </div>
       </div>
     </div>

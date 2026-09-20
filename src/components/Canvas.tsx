@@ -3,6 +3,7 @@ import { Background, BackgroundVariant, Controls, ReactFlow, useReactFlow, type 
 import '@xyflow/react/dist/style.css'
 import { useGraphStore } from '../store/graphStore'
 import { useThemeStore } from '../store/themeStore'
+import { useRunControls } from '../hooks/useRunControls'
 import { isValidConnection as validateKinds } from '../simulation/specs'
 import type { NodeKind } from '../simulation/types'
 import { ClientNode } from './nodes/ClientNode'
@@ -18,6 +19,7 @@ export function Canvas() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, setSelectedNodeId, locked } = useGraphStore()
   const { screenToFlowPosition } = useReactFlow()
   const theme = useThemeStore((s) => s.theme)
+  const { status, run, pause, resume } = useRunControls()
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -51,7 +53,14 @@ export function Canvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         isValidConnection={checkConnection}
-        onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+        onNodeClick={(_, node) => {
+          if (node.data.kind === 'client') {
+            if (status === 'idle') return run()
+            if (status === 'running') return pause()
+            if (status === 'paused') return resume()
+          }
+          setSelectedNodeId(node.id)
+        }}
         onPaneClick={() => setSelectedNodeId(null)}
         nodesDraggable={!locked}
         nodesConnectable={!locked}

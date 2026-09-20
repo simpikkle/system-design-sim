@@ -8,12 +8,14 @@ const DOT_COUNT = 3
 
 export function TrafficEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<FlowEdge>) {
   const stat = useSimStore((s) => s.displayed?.edgeStats[id])
-  const running = useSimStore((s) => s.status !== 'idle')
+  const status = useSimStore((s) => s.status)
+  const hasData = status !== 'idle'
+  const animating = status === 'running'
   const [path] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 0 })
 
   const rps = stat?.rps ?? 0
-  const color = running && stat ? STATUS_COLOR[stat.status] : IDLE_COLOR
-  const active = running && rps > 0.5
+  const color = hasData && stat ? STATUS_COLOR[stat.status] : IDLE_COLOR
+  const active = animating && rps > 0.5
   const duration = active ? Math.max(0.5, 2.4 - Math.min(rps, 800) / 500) : 0
 
   return (

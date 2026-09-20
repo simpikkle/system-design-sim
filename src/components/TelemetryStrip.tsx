@@ -10,7 +10,7 @@ function severity(value: number, warn: number, max: number): Status {
 }
 
 export function TelemetryStrip() {
-  const { status, displayed, history, scenario, scrub, releaseScrub } = useSimStore()
+  const { status, displayed, history, scenario, traffic, scrub, releaseScrub } = useSimStore()
   const { thresholds } = scenario
 
   const errSeverity = displayed ? severity(displayed.errorRatePct, thresholds.warnErrorRatePct, thresholds.maxErrorRatePct) : 'good'
@@ -54,13 +54,13 @@ export function TelemetryStrip() {
         <div className="flex justify-between font-mono text-[10px] text-ink-faint">
           <span>timeline</span>
           <span>
-            {progress.toFixed(1)}s / {scenario.durationSec}s
+            {progress.toFixed(1)}s / {traffic.durationSec}s
           </span>
         </div>
         <input
           type="range"
           min={0}
-          max={scenario.durationSec}
+          max={traffic.durationSec}
           step={0.1}
           value={progress}
           disabled={scrubDisabled}

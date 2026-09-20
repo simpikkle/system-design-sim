@@ -43,12 +43,23 @@ describe('simulateAt', () => {
     expect(snap.nodeStats.s1.status).toBe('good')
   })
 
-  it('drops traffic and flags critical once a server exceeds capacity', () => {
+  it('kills a server once demand exceeds capacity — no partial throughput leaks past it', () => {
     const { nodes, edges } = chain()
     // small server capacity is 120 each => 240 total; push well past it
     const snap = simulateAt(nodes, edges, flatScenario(1000), 0)
-    expect(snap.errorRatePct).toBeGreaterThan(50)
     expect(snap.nodeStats.s1.status).toBe('critical')
+    expect(snap.nodeStats.s1.acceptedRps).toBe(0)
+    expect(snap.errorRatePct).toBeCloseTo(100)
+  })
+
+  it('colors an edge by what its source already knows, not by the target it has not reached yet', () => {
+    const { nodes, edges } = chain()
+    // s1 dies under this load; the edge feeding it (source = healthy LB) must still read as unknown/good —
+    // only the edge leaving the dead server should flip to critical.
+    const snap = simulateAt(nodes, edges, flatScenario(1000), 0)
+    expect(snap.nodeStats.s1.status).toBe('critical')
+    expect(snap.edgeStats.e2.status).toBe('good') // lb -> s1
+    expect(snap.edgeStats.e4.status).toBe('critical') // s1 -> db
   })
 
   it('raises latency as utilization approaches capacity', () => {
@@ -56,6 +67,23 @@ describe('simulateAt', () => {
     const low = simulateAt(nodes, edges, flatScenario(20), 0)
     const high = simulateAt(nodes, edges, flatScenario(220), 0)
     expect(high.nodeStats.s1.latencyMs).toBeGreaterThan(low.nodeStats.s1.latencyMs)
+  })
+
+  it('ramps a newly wired edge in gradually instead of an instant fair share', () => {
+    const { nodes, edges } = chain()
+    const rampedEdges = edges.map((e) => (e.id === 'e3' ? { ...e, addedAtSimTime: 5 } : e))
+
+    const atConnect = simulateAt(nodes, rampedEdges, flatScenario(100), 5)
+    expect(atConnect.nodeStats.s2.incomingRps).toBeCloseTo(0)
+    expect(atConnect.nodeStats.s1.incomingRps).toBeCloseTo(100)
+
+    const midRamp = simulateAt(nodes, rampedEdges, flatScenario(100), 7)
+    expect(midRamp.nodeStats.s2.incomingRps).toBeGreaterThan(0)
+    expect(midRamp.nodeStats.s2.incomingRps).toBeLessThan(midRamp.nodeStats.s1.incomingRps)
+
+    const afterRamp = simulateAt(nodes, rampedEdges, flatScenario(100), 9)
+    expect(afterRamp.nodeStats.s1.incomingRps).toBeCloseTo(50)
+    expect(afterRamp.nodeStats.s2.incomingRps).toBeCloseTo(50)
   })
 })
 

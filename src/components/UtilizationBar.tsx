@@ -9,7 +9,9 @@ interface UtilizationBarProps {
 
 export function UtilizationBar({ utilization, status, latencyMs }: UtilizationBarProps) {
   const pct = Math.min(1, utilization) * 100
+  const displayPct = Math.min(100, Math.round(utilization * 100))
   const color = STATUS_COLOR[status]
+  const dead = status === 'critical'
   return (
     <div>
       <div className="flex items-center justify-between text-xs text-ink-muted">
@@ -17,13 +19,12 @@ export function UtilizationBar({ utilization, status, latencyMs }: UtilizationBa
           <span aria-hidden>{STATUS_GLYPH[status]}</span>
           {STATUS_LABEL[status]}
         </span>
-        <span className="font-mono">{Math.round(utilization * 100)}%</span>
+        <span className="font-mono" style={{ color: dead ? color : undefined }}>
+          {displayPct}%
+        </span>
       </div>
       <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
-        <div
-          className="h-full rounded-full transition-[width] duration-150 ease-linear"
-          style={{ width: `${pct}%`, background: color, boxShadow: utilization > 1 ? `0 0 8px ${color}` : undefined }}
-        />
+        <div className="h-full rounded-full transition-[width] duration-150 ease-linear" style={{ width: `${pct}%`, background: color }} />
       </div>
       <div className="mt-1.5 font-mono text-xs text-ink-muted">{Math.round(latencyMs)}ms</div>
     </div>

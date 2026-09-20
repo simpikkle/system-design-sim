@@ -10,6 +10,7 @@ import {
 } from '@xyflow/react'
 import { create } from 'zustand'
 import { defaultSizeFor, isValidConnection } from '../simulation/specs'
+import { useSimStore } from './simStore'
 import type { GraphEdge, GraphNode, NodeKind, Size } from '../simulation/types'
 
 export interface NodeData extends Record<string, unknown> {
@@ -18,8 +19,13 @@ export interface NodeData extends Record<string, unknown> {
   size?: Size
 }
 
+export interface EdgeData extends Record<string, unknown> {
+  /** sim time (seconds) this edge was wired in mid-run — undefined for edges present since the design started */
+  addedAtSimTime?: number
+}
+
 export type FlowNode = Node<NodeData>
-export type FlowEdge = Edge
+export type FlowEdge = Edge<EdgeData>
 
 let nodeSeq = 0
 const nextId = (kind: string) => `${kind}-${++nodeSeq}`
@@ -68,7 +74,15 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const target = nodes.find((n) => n.id === connection.target)
     if (!source || !target) return
     if (!isValidConnection(source.data.kind, target.data.kind)) return
-    set({ edges: addEdge({ ...connection, id: `e-${connection.source}-${connection.target}`, type: 'traffic' }, edges) })
+    const simStatus = useSimStore.getState().status
+    const addedAtSimTime = simStatus === 'paused' ? useSimStore.getState().simTime : undefined
+    const newEdge: FlowEdge = {
+      ...connection,
+      id: `e-${connection.source}-${connection.target}`,
+      type: 'traffic',
+      data: { addedAtSimTime },
+    }
+    set({ edges: addEdge(newEdge, edges) })
   },
 
   addNode: (kind, position) => {
@@ -99,6 +113,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 export function toSimGraph(nodes: FlowNode[], edges: FlowEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
   return {
     nodes: nodes.map((n) => ({ id: n.id, kind: n.data.kind, name: n.data.name, size: n.data.size })),
-    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, addedAtSimTime: e.data?.addedAtSimTime })),
   }
 }

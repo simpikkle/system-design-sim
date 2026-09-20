@@ -12,17 +12,19 @@ interface NodeShellProps {
 }
 
 export function NodeShell({ icon, name, kindLabel, selected, status, children }: NodeShellProps) {
-  const glow = status === 'critical' ? 'animate-pulse' : ''
+  const dead = status === 'critical'
   return (
     <div
-      className={`w-[220px] rounded-xl border bg-surface-1 px-4 py-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-colors ${glow}`}
+      className="w-[220px] rounded-xl border bg-surface-1 px-4 py-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-colors"
       style={{
         borderColor: selected
           ? 'var(--color-accent)'
-          : status
-            ? `color-mix(in srgb, ${STATUS_COLOR[status]} 35%, var(--color-surface-border))`
-            : 'var(--color-surface-border)',
-        boxShadow: selected ? '0 0 0 3px var(--color-accent-dim)' : undefined,
+          : dead
+            ? 'var(--color-critical)'
+            : status
+              ? `color-mix(in srgb, ${STATUS_COLOR[status]} 35%, var(--color-surface-border))`
+              : 'var(--color-surface-border)',
+        boxShadow: selected ? '0 0 0 3px var(--color-accent-dim)' : dead ? '0 0 0 2px var(--color-critical-dim)' : undefined,
       }}
     >
       <div className="flex items-center gap-2">

@@ -13,6 +13,8 @@ export interface GraphEdge {
   id: string
   source: string
   target: string
+  /** sim time (seconds) this edge was wired in mid-run — undefined means it ramps in instantly at weight 1 */
+  addedAtSimTime?: number
 }
 
 export interface SizeSpec {
@@ -59,6 +61,9 @@ export interface Scenario {
   durationSec: number
   /** requests/sec offered by the client at time t (0..durationSec) */
   trafficAt: (tSec: number, durationSec: number) => number
+  /** seed values for the user-editable traffic controls; falls back to trafficAt if absent */
+  baseRps?: number
+  peakRps?: number
   thresholds: {
     maxP99LatencyMs: number
     maxErrorRatePct: number

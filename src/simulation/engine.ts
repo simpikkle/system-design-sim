@@ -11,12 +11,29 @@ import type {
   Verdict,
 } from './types'
 
-const WARN_UTILIZATION = 0.75
+const WARN_UTILIZATION = 0.8
+const DEAD_UTILIZATION = 1
 const MAX_UTILIZATION_FOR_LATENCY = 0.98
+/** Newly wired edges ramp from 0 to their fair share over this many sim-seconds, instead of taking it instantly. */
+const EDGE_RAMP_IN_SEC = 4
+
+/** Fraction of a node's accepted traffic each outgoing edge currently carries, summing to 1. */
+function edgeFanOutWeights(outEdges: GraphEdge[], tSec: number): number[] {
+  const weights = outEdges.map((e) => {
+    if (e.addedAtSimTime == null) return 1
+    const dt = tSec - e.addedAtSimTime
+    if (dt <= 0) return 0
+    if (dt >= EDGE_RAMP_IN_SEC) return 1
+    return dt / EDGE_RAMP_IN_SEC
+  })
+  const total = weights.reduce((s, w) => s + w, 0)
+  if (total <= 0) return outEdges.map(() => 1 / outEdges.length)
+  return weights.map((w) => w / total)
+}
 
 function statusForUtilization(utilization: number): Status {
-  if (utilization > 1) return 'critical'
-  if (utilization > WARN_UTILIZATION) return 'warning'
+  if (utilization >= DEAD_UTILIZATION) return 'critical'
+  if (utilization >= WARN_UTILIZATION) return 'warning'
   return 'good'
 }
 
@@ -76,6 +93,7 @@ export function simulateAt(
   }
 
   const edgeRps = new Map<string, number>()
+  const edgeFraction = new Map<string, number>()
   const nodeStats = new Map<string, NodeStat>()
   const samplesBefore = new Map<string, LatencySample[]>()
   const offeredRps = scenario.trafficAt(tSec, scenario.durationSec)
@@ -92,7 +110,8 @@ export function simulateAt(
     if (node.kind === 'server' || node.kind === 'db') {
       const spec = SIZE_SPECS[node.kind][node.size ?? 'small']
       utilization = spec.capacity > 0 ? incomingRps / spec.capacity : 0
-      acceptedRps = Math.min(incomingRps, spec.capacity)
+      // At or past capacity the node is dead, not degraded: it forwards nothing further.
+      acceptedRps = utilization >= DEAD_UTILIZATION ? 0 : incomingRps
       const clamped = Math.min(utilization, MAX_UTILIZATION_FOR_LATENCY)
       latencyMs = spec.latencyMs / Math.max(0.02, 1 - clamped)
     } else if (node.kind === 'loadBalancer') {
@@ -109,13 +128,17 @@ export function simulateAt(
       status: statusForUtilization(utilization),
     })
 
-    const share = outEdges.length > 0 ? acceptedRps / outEdges.length : 0
-    for (const e of outEdges) edgeRps.set(e.id, share)
+    if (outEdges.length > 0) {
+      const weights = edgeFanOutWeights(outEdges, tSec)
+      outEdges.forEach((e, i) => {
+        edgeFraction.set(e.id, weights[i])
+        edgeRps.set(e.id, acceptedRps * weights[i])
+      })
+    }
 
     const survival = incomingRps > 0 ? acceptedRps / incomingRps : 1
     const inbound: LatencySample[] = inEdges.flatMap((e) => {
-      const sourceOut = outEdgesBySource.get(e.source) ?? []
-      const fraction = sourceOut.length > 0 ? 1 / sourceOut.length : 1
+      const fraction = edgeFraction.get(e.id) ?? 1
       return (samplesBefore.get(e.source) ?? []).map((s) => ({ rps: s.rps * fraction, latencyMs: s.latencyMs }))
     })
     const base: LatencySample[] = node.kind === 'client' ? [{ rps: offeredRps, latencyMs: 0 }] : inbound
@@ -130,11 +153,12 @@ export function simulateAt(
   const servedRps = leaves.reduce((s, n) => s + (nodeStats.get(n.id)?.acceptedRps ?? 0), 0)
   const errorRatePct = offeredRps > 0 ? Math.max(0, 1 - servedRps / offeredRps) * 100 : 0
 
+  // An edge is colored by what its source already knows, not by the fate awaiting it downstream.
   const edgeStats: Record<string, EdgeStat> = {}
   for (const e of edges) {
     const rps = edgeRps.get(e.id) ?? 0
-    const targetStat = nodeStats.get(e.target)
-    edgeStats[e.id] = { rps, status: targetStat?.status ?? 'good' }
+    const sourceStat = nodeStats.get(e.source)
+    edgeStats[e.id] = { rps, status: sourceStat?.status ?? 'good' }
   }
 
   return {

@@ -12,7 +12,11 @@ const ICONS = { client: ClientIcon, loadBalancer: LoadBalancerIcon, server: Serv
 export function ConfigPanel() {
   const { nodes, selectedNodeId, updateNodeData, removeNode, locked } = useGraphStore()
   const scenario = useSimStore((s) => s.scenario)
+  const traffic = useSimStore((s) => s.traffic)
+  const setTraffic = useSimStore((s) => s.setTraffic)
+  const status = useSimStore((s) => s.status)
   const node = nodes.find((n) => n.id === selectedNodeId)
+  const trafficLocked = status !== 'idle'
 
   if (!node) {
     return (
@@ -21,6 +25,55 @@ export function ConfigPanel() {
           <div className="font-display text-sm font-semibold text-ink">{scenario.name}</div>
           <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">{scenario.description}</p>
         </div>
+
+        <div>
+          <span className="mb-1.5 block text-[11px] font-medium text-ink-muted">Traffic</span>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="mb-1 block text-[10px] text-ink-faint">Base req/s</span>
+              <input
+                type="number"
+                min={1}
+                max={traffic.peakRps - 1}
+                step={10}
+                value={traffic.baseRps}
+                disabled={trafficLocked}
+                onChange={(e) => setTraffic({ baseRps: Number(e.target.value) })}
+                className="w-full rounded-md border border-surface-border bg-surface-2 px-2.5 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent disabled:opacity-50"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] text-ink-faint">Peak req/s</span>
+              <input
+                type="number"
+                min={traffic.baseRps + 1}
+                max={20000}
+                step={100}
+                value={traffic.peakRps}
+                disabled={trafficLocked}
+                onChange={(e) => setTraffic({ peakRps: Number(e.target.value) })}
+                className="w-full rounded-md border border-surface-border bg-surface-2 px-2.5 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent disabled:opacity-50"
+              />
+            </label>
+          </div>
+          <label className="mt-2 block">
+            <span className="mb-1 block text-[10px] text-ink-faint">Ramp duration (s)</span>
+            <input
+              type="number"
+              min={5}
+              max={120}
+              step={5}
+              value={traffic.durationSec}
+              disabled={trafficLocked}
+              onChange={(e) => setTraffic({ durationSec: Number(e.target.value) })}
+              className="w-full rounded-md border border-surface-border bg-surface-2 px-2.5 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent disabled:opacity-50"
+            />
+          </label>
+          <p className="mt-2 text-[11px] leading-snug text-ink-faint">
+            Traffic eases from base to peak over the ramp duration. Locked once a run starts.
+          </p>
+        </div>
+
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
           <p className="text-[13px] text-ink-faint">Select a component to configure it.</p>
           <p className="text-[11px] text-ink-faint">Every number a component uses is shown here — nothing is hidden.</p>

@@ -9,7 +9,7 @@ export const STATUS_COLOR: Record<Status, string> = {
 export const STATUS_LABEL: Record<Status, string> = {
   good: 'Healthy',
   warning: 'Strained',
-  critical: 'Overloaded',
+  critical: 'Dead',
 }
 
 /** Text/icon redundancy alongside color — status is never conveyed by hue alone. */
