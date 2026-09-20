@@ -1,4 +1,4 @@
-# Systemic
+# System Design Simulator
 
 A browser-based system design simulator. Drag components onto a canvas, wire
 them together, run a traffic scenario, and get scored — green, yellow, or red.

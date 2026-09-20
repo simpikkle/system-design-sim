@@ -1,4 +1,5 @@
 import { useGraphStore } from '../store/graphStore'
+import { useSimStore } from '../store/simStore'
 import { SIZE_SPECS } from '../simulation/specs'
 import type { Size } from '../simulation/types'
 import { ClientIcon, DbIcon, LoadBalancerIcon, ServerIcon } from './icons'
@@ -10,13 +11,20 @@ const ICONS = { client: ClientIcon, loadBalancer: LoadBalancerIcon, server: Serv
 
 export function ConfigPanel() {
   const { nodes, selectedNodeId, updateNodeData, removeNode, locked } = useGraphStore()
+  const scenario = useSimStore((s) => s.scenario)
   const node = nodes.find((n) => n.id === selectedNodeId)
 
   if (!node) {
     return (
-      <aside className="flex w-72 shrink-0 flex-col items-center justify-center gap-2 border-l border-surface-border bg-surface-1/60 p-6 text-center">
-        <p className="text-[13px] text-ink-faint">Select a component to configure it.</p>
-        <p className="text-[11px] text-ink-faint">Every number a component uses is shown here — nothing is hidden.</p>
+      <aside className="flex w-72 shrink-0 flex-col gap-6 border-l border-surface-border bg-surface-1/60 p-6">
+        <div>
+          <div className="font-display text-sm font-semibold text-ink">{scenario.name}</div>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">{scenario.description}</p>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+          <p className="text-[13px] text-ink-faint">Select a component to configure it.</p>
+          <p className="text-[11px] text-ink-faint">Every number a component uses is shown here — nothing is hidden.</p>
+        </div>
       </aside>
     )
   }

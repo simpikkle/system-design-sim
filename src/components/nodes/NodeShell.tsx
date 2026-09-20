@@ -15,7 +15,7 @@ export function NodeShell({ icon, name, kindLabel, selected, status, children }:
   const glow = status === 'critical' ? 'animate-pulse' : ''
   return (
     <div
-      className={`w-[190px] rounded-xl border bg-surface-1 px-3.5 py-3 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-colors ${glow}`}
+      className={`w-[220px] rounded-xl border bg-surface-1 px-4 py-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.35)] transition-colors ${glow}`}
       style={{
         borderColor: selected
           ? 'var(--color-accent)'
@@ -26,15 +26,15 @@ export function NodeShell({ icon, name, kindLabel, selected, status, children }:
       }}
     >
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-2 text-accent">
-          <span className="block h-4 w-4">{icon}</span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-accent">
+          <span className="block h-5 w-5">{icon}</span>
         </span>
         <div className="min-w-0">
-          <div className="truncate font-display text-[13px] font-medium leading-tight text-ink">{name}</div>
-          <div className="text-[10px] uppercase tracking-wider text-ink-faint">{kindLabel}</div>
+          <div className="truncate font-display text-base font-medium leading-tight text-ink">{name}</div>
+          <div className="text-xs uppercase tracking-wider text-ink-faint">{kindLabel}</div>
         </div>
       </div>
-      {children && <div className="mt-2.5">{children}</div>}
+      {children && <div className="mt-3">{children}</div>}
     </div>
   )
 }

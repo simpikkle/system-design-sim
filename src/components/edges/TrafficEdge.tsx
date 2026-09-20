@@ -1,15 +1,15 @@
-import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react'
+import { BaseEdge, getSmoothStepPath, type EdgeProps } from '@xyflow/react'
 import { useSimStore } from '../../store/simStore'
 import { STATUS_COLOR } from '../statusColors'
 import type { FlowEdge } from '../../store/graphStore'
 
-const IDLE_COLOR = 'var(--color-surface-border)'
+const IDLE_COLOR = 'var(--color-ink-faint)'
 const DOT_COUNT = 3
 
 export function TrafficEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<FlowEdge>) {
   const stat = useSimStore((s) => s.displayed?.edgeStats[id])
   const running = useSimStore((s) => s.status !== 'idle')
-  const [path] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition })
+  const [path] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 0 })
 
   const rps = stat?.rps ?? 0
   const color = running && stat ? STATUS_COLOR[stat.status] : IDLE_COLOR
@@ -18,7 +18,7 @@ export function TrafficEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosi
 
   return (
     <>
-      <BaseEdge id={id} path={path} style={{ stroke: color, strokeWidth: active ? 2 : 1.5, opacity: active ? 0.9 : 0.5 }} />
+      <BaseEdge id={id} path={path} style={{ stroke: color, strokeWidth: active ? 2.5 : 2, opacity: active ? 0.9 : 0.85 }} />
       {active && (
         <>
           <path id={`${id}-guide`} d={path} fill="none" stroke="none" />

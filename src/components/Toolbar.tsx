@@ -25,14 +25,13 @@ export function Toolbar() {
     <header className="flex h-16 shrink-0 items-center gap-6 border-b border-surface-border bg-surface-1/80 px-5">
       <div className="flex items-center gap-2">
         <div className="h-2 w-2 rounded-full bg-accent" style={{ boxShadow: '0 0 8px var(--color-accent)' }} />
-        <span className="font-display text-[15px] font-semibold tracking-tight text-ink">Systemic</span>
+        <span className="font-display text-[15px] font-semibold tracking-tight text-ink">System Design Simulator</span>
       </div>
 
       <div className="h-8 w-px bg-surface-border" />
 
       <div className="min-w-0">
         <div className="font-display text-[13px] font-medium text-ink">{scenario.name}</div>
-        <div className="max-w-md truncate text-[11px] text-ink-faint">{scenario.description}</div>
       </div>
 
       <div className="ml-auto flex items-center gap-4">
