@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { simulateAt, score } from './engine'
-import type { GraphEdge, GraphNode, Scenario } from './types'
+import type { GraphEdge, GraphNode, LbStrategy, Scenario } from './types'
 
 const flatScenario = (rps: number): Scenario => ({
   id: 'flat',
@@ -26,6 +26,23 @@ const chain = () => {
     { id: 'e3', source: 'lb', target: 's2' },
     { id: 'e4', source: 's1', target: 'db' },
     { id: 'e5', source: 's2', target: 'db' },
+  ]
+
+  return { nodes, edges }
+}
+
+const mixedChain = (strategy: LbStrategy) => {
+  const nodes: GraphNode[] = [
+    { id: 'c', kind: 'client', name: 'Client' },
+    { id: 'lb', kind: 'loadBalancer', name: 'LB', strategy },
+    { id: 's1', kind: 'server', name: 'Small', size: 'small' }, // capacity 120
+    { id: 's2', kind: 'server', name: 'Large', size: 'large' }, // capacity 1400
+  ]
+
+  const edges: GraphEdge[] = [
+    { id: 'e1', source: 'c', target: 'lb' },
+    { id: 'e2', source: 'lb', target: 's1' },
+    { id: 'e3', source: 'lb', target: 's2' },
   ]
 
   return { nodes, edges }
@@ -87,6 +104,59 @@ describe('simulateAt', () => {
     const afterRamp = simulateAt(nodes, rampedEdges, flatScenario(100), 9)
     expect(afterRamp.nodeStats.s1.incomingRps).toBeCloseTo(50)
     expect(afterRamp.nodeStats.s2.incomingRps).toBeCloseTo(50)
+  })
+
+  it('evicts a server that a round of routing would kill, redistributes to the survivor, but keeps the evicted one marked dead', () => {
+    const { nodes, edges } = mixedChain('round-robin')
+    // equal 150/150 split would kill the small server (cap 120); the large one (cap 1400) can
+    // absorb all 300 alone, so the balancer stops sending the small one anything — but it stays
+    // marked dead (it didn't recover, it was cut off) rather than reading as healthy-and-idle.
+    const snap = simulateAt(nodes, edges, flatScenario(300), 0)
+    expect(snap.nodeStats.s1.status).toBe('critical')
+    expect(snap.nodeStats.s1.incomingRps).toBeCloseTo(0)
+    expect(snap.edgeStats.e2.excluded).toBe(true) // lb -> s1
+    expect(snap.nodeStats.s2.status).toBe('good')
+    expect(snap.nodeStats.s2.incomingRps).toBeCloseTo(300)
+    expect(snap.errorRatePct).toBeCloseTo(0)
+  })
+
+  it('gives up evicting once nobody left in rotation can survive, instead of hiding total failure', () => {
+    const { nodes, edges } = mixedChain('round-robin')
+    // 1600 exceeds even the large server's capacity (1400) alone, so evicting the small one first
+    // just delays the inevitable — the large one ends up visibly dead rather than everyone reading "healthy".
+    const snap = simulateAt(nodes, edges, flatScenario(1600), 0)
+    expect(snap.nodeStats.s1.status).toBe('critical')
+    expect(snap.nodeStats.s1.incomingRps).toBeCloseTo(0)
+    expect(snap.nodeStats.s2.status).toBe('critical')
+    expect(snap.errorRatePct).toBeCloseTo(100)
+  })
+
+  it('weighted keeps both servers healthy at the same load by favoring capacity', () => {
+    const { nodes, edges } = mixedChain('weighted')
+    const snap = simulateAt(nodes, edges, flatScenario(300), 0)
+    expect(snap.nodeStats.s1.status).toBe('good')
+    expect(snap.nodeStats.s2.status).toBe('good')
+    // both land at the same utilization — proportional split equalizes load, not raw rps.
+    expect(snap.nodeStats.s1.utilization).toBeCloseTo(snap.nodeStats.s2.utilization, 3)
+    expect(snap.nodeStats.s2.incomingRps).toBeGreaterThan(snap.nodeStats.s1.incomingRps)
+  })
+
+  it('weighted still fails everyone once demand exceeds combined capacity — it never protects a server', () => {
+    const { nodes, edges } = mixedChain('weighted')
+    // combined capacity is 1520; push well past it
+    const snap = simulateAt(nodes, edges, flatScenario(2000), 0)
+    expect(snap.nodeStats.s1.status).toBe('critical')
+    expect(snap.nodeStats.s2.status).toBe('critical')
+    expect(snap.errorRatePct).toBeCloseTo(100)
+  })
+
+  it('least-connections protects both servers under the same overload, failing only the excess at the balancer', () => {
+    const { nodes, edges } = mixedChain('least-connections')
+    const snap = simulateAt(nodes, edges, flatScenario(2000), 0)
+    expect(snap.nodeStats.s1.status).not.toBe('critical')
+    expect(snap.nodeStats.s2.status).not.toBe('critical')
+    expect(snap.errorRatePct).toBeGreaterThan(0)
+    expect(snap.errorRatePct).toBeLessThan(50)
   })
 })
 

@@ -15,13 +15,23 @@ export function TrafficEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosi
   const [path] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 0 })
 
   const rps = stat?.rps ?? 0
-  const color = hasData && stat ? STATUS_COLOR[stat.status] : IDLE_COLOR
-  const active = animating && rps > 0.5
+  const excluded = hasData && (stat?.excluded ?? false)
+  const color = excluded ? 'var(--color-critical)' : hasData && stat ? STATUS_COLOR[stat.status] : IDLE_COLOR
+  const active = !excluded && animating && rps > 0.5
   const duration = active ? Math.max(0.5, 2.4 - Math.min(rps, 800) / 500) : 0
 
   return (
     <>
-      <BaseEdge id={id} path={path} style={{ stroke: color, strokeWidth: active ? 2.5 : 2, opacity: active ? 0.9 : 0.85 }} />
+      <BaseEdge
+        id={id}
+        path={path}
+        style={{
+          stroke: color,
+          strokeWidth: active ? 2.5 : 2,
+          opacity: excluded ? 0.45 : active ? 0.9 : 0.85,
+          strokeDasharray: excluded ? '6 5' : undefined,
+        }}
+      />
       {active && (
         <>
           <path id={`${id}-guide`} d={path} fill="none" stroke="none" />

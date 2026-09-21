@@ -9,14 +9,15 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import { create } from 'zustand'
-import { defaultSizeFor, isValidConnection } from '../simulation/specs'
+import { defaultSizeFor, DEFAULT_LB_STRATEGY, isValidConnection } from '../simulation/specs'
 import { useSimStore } from './simStore'
-import type { GraphEdge, GraphNode, NodeKind, Size } from '../simulation/types'
+import type { GraphEdge, GraphNode, LbStrategy, NodeKind, Size } from '../simulation/types'
 
 export interface NodeData extends Record<string, unknown> {
   kind: NodeKind
   name: string
   size?: Size
+  strategy?: LbStrategy
 }
 
 export interface EdgeData extends Record<string, unknown> {
@@ -34,7 +35,12 @@ const nextId = (kind: string) => `${kind}-${++nodeSeq}`
 
 const initialNodes: FlowNode[] = [
   { id: 'client-0', type: 'client', position: { x: 40, y: 220 }, data: { kind: 'client', name: 'Client' }, deletable: false },
-  { id: 'lb-0', type: 'loadBalancer', position: { x: 300, y: 220 }, data: { kind: 'loadBalancer', name: 'Load Balancer' } },
+  {
+    id: 'lb-0',
+    type: 'loadBalancer',
+    position: { x: 300, y: 220 },
+    data: { kind: 'loadBalancer', name: 'Load Balancer', strategy: DEFAULT_LB_STRATEGY },
+  },
   { id: 'server-0', type: 'server', position: { x: 580, y: 100 }, data: { kind: 'server', name: 'Server A', size: 'small' } },
   { id: 'db-0', type: 'db', position: { x: 860, y: 100 }, data: { kind: 'db', name: 'Primary DB', size: 'small' } },
 ]
@@ -97,6 +103,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const data: NodeData = { kind, name }
 
     if (kind === 'server' || kind === 'db') data.size = defaultSizeFor(kind)
+
+    if (kind === 'loadBalancer') data.strategy = DEFAULT_LB_STRATEGY
     set({ nodes: [...get().nodes, { id, type: kind, position, data }] })
   },
 
@@ -125,7 +133,7 @@ export interface SimGraph {
 
 export function toSimGraph(nodes: FlowNode[], edges: FlowEdge[]): SimGraph {
   return {
-    nodes: nodes.map((n) => ({ id: n.id, kind: n.data.kind, name: n.data.name, size: n.data.size })),
+    nodes: nodes.map((n) => ({ id: n.id, kind: n.data.kind, name: n.data.name, size: n.data.size, strategy: n.data.strategy })),
     edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, addedAtSimTime: e.data?.addedAtSimTime })),
   }
 }

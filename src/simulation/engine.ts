@@ -20,24 +20,132 @@ const MAX_UTILIZATION_FOR_LATENCY = 0.98
 /** Newly wired edges ramp from 0 to their fair share over this many sim-seconds, instead of taking it instantly. */
 const EDGE_RAMP_IN_SEC = 4
 
-/** Fraction of a node's accepted traffic each outgoing edge currently carries, summing to 1. */
-function edgeFanOutWeights(outEdges: GraphEdge[], tSec: number): number[] {
-  const weights = outEdges.map((e) => {
-    if (e.addedAtSimTime == null) return 1
-    const dt = tSec - e.addedAtSimTime
+/** Least-connections backs off just short of the dead threshold, so it protects a server instead of killing it. */
+const LEAST_CONNECTIONS_SAFE_UTILIZATION = DEAD_UTILIZATION - 0.001
 
-    if (dt <= 0) return 0
+function rampFactor(edge: GraphEdge, tSec: number): number {
+  if (edge.addedAtSimTime == null) return 1
+  const dt = tSec - edge.addedAtSimTime
 
-    if (dt >= EDGE_RAMP_IN_SEC) return 1
+  if (dt <= 0) return 0
 
-    return dt / EDGE_RAMP_IN_SEC
-  })
+  if (dt >= EDGE_RAMP_IN_SEC) return 1
 
-  const total = weights.reduce((s, w) => s + w, 0)
+  return dt / EDGE_RAMP_IN_SEC
+}
 
-  if (total <= 0) return outEdges.map(() => 1 / outEdges.length)
+function targetCapacity(nodesById: Map<string, GraphNode>, edge: GraphEdge): number {
+  const target = nodesById.get(edge.target)
 
-  return weights.map((w) => w / total)
+  if (!target || (target.kind !== 'server' && target.kind !== 'db')) return 1
+
+  return SIZE_SPECS[target.kind][target.size ?? 'small'].capacity
+}
+
+interface RawSplit {
+  /** absolute req/s sent down each outgoing edge, in the same order as outEdges */
+  assigned: number[]
+  /** demand that no edge received — only least-connections ever produces this, as backpressure at the balancer */
+  overflow: number
+  /** combined effective capacity of every outgoing edge's target, ramp-in included */
+  totalCapacity: number
+}
+
+interface FanOutResult extends RawSplit {
+  /** edges cut from rotation this tick because their fair share would have killed the target */
+  excludedIds: Set<string>
+  /** for an excluded edge: the utilization its target would have hit had it not been cut off */
+  attemptedUtilization: Map<string, number>
+}
+
+/** How a node splits its accepted traffic across its outgoing edges. Only 'loadBalancer' nodes ever
+ *  use anything but round-robin — every other kind falls back to it (a no-op with a single outgoing edge). */
+function fanOut(node: GraphNode, outEdges: GraphEdge[], demand: number, tSec: number, nodesById: Map<string, GraphNode>): RawSplit {
+  const ramps = outEdges.map((e) => rampFactor(e, tSec))
+  const strategy = node.kind === 'loadBalancer' ? (node.strategy ?? 'round-robin') : 'round-robin'
+  const capacities = outEdges.map((e, i) => targetCapacity(nodesById, e) * ramps[i])
+  const totalCapacity = capacities.reduce((s, c) => s + c, 0)
+
+  if (strategy === 'round-robin') {
+    const totalRamp = ramps.reduce((s, r) => s + r, 0)
+    const assigned = totalRamp > 0 ? ramps.map((r) => demand * (r / totalRamp)) : outEdges.map(() => demand / outEdges.length)
+
+    return { assigned, overflow: 0, totalCapacity }
+  }
+
+  if (totalCapacity <= 0) {
+    return { assigned: outEdges.map(() => demand / outEdges.length), overflow: 0, totalCapacity }
+  }
+
+  if (strategy === 'weighted') {
+    return { assigned: capacities.map((c) => demand * (c / totalCapacity)), overflow: 0, totalCapacity }
+  }
+
+  // least-connections: fill every server proportionally up to a safety ceiling just under the dead
+  // threshold. Demand beyond that combined ceiling fails here rather than pushing any server over.
+  const safeCapacity = totalCapacity * LEAST_CONNECTIONS_SAFE_UTILIZATION
+
+  if (demand <= safeCapacity) {
+    return { assigned: capacities.map((c) => demand * (c / totalCapacity)), overflow: 0, totalCapacity }
+  }
+
+  return { assigned: capacities.map((c) => c * LEAST_CONNECTIONS_SAFE_UTILIZATION), overflow: demand - safeCapacity, totalCapacity }
+}
+
+/** Wraps fanOut with health-check-style eviction: a target that this round's split would kill is
+ *  pulled out of rotation and its share redistributed among the rest, same as a real balancer would
+ *  stop sending traffic to a backend that's failing. Only backs off when it actually helps — if every
+ *  remaining candidate dies together, further eviction can't save anyone, so the result is accepted
+ *  as-is rather than emptying the pool and hiding the failure behind a falsely "healthy" 0%. */
+function resolveFanOut(
+  node: GraphNode,
+  outEdges: GraphEdge[],
+  demand: number,
+  tSec: number,
+  nodesById: Map<string, GraphNode>,
+): FanOutResult {
+  const excluded = new Set<string>()
+  const attemptedUtilization = new Map<string, number>()
+
+  for (let attempt = 0; attempt <= outEdges.length; attempt++) {
+    const active = outEdges.filter((e) => !excluded.has(e.id))
+    const result = fanOut(node, active, demand, tSec, nodesById)
+
+    const deadIds = new Set<string>()
+    const utilizationById = new Map<string, number>()
+
+    active.forEach((e, i) => {
+      const capacity = targetCapacity(nodesById, e)
+      const utilization = capacity > 0 ? result.assigned[i] / capacity : 0
+
+      utilizationById.set(e.id, utilization)
+
+      if (utilization >= DEAD_UTILIZATION) deadIds.add(e.id)
+    })
+
+    if (deadIds.size === 0 || deadIds.size === active.length) {
+      const assigned = outEdges.map((e) => {
+        const idx = active.findIndex((a) => a.id === e.id)
+
+        return idx === -1 ? 0 : result.assigned[idx]
+      })
+
+      return { assigned, overflow: result.overflow, totalCapacity: result.totalCapacity, excludedIds: excluded, attemptedUtilization }
+    }
+
+    for (const id of deadIds) {
+      attemptedUtilization.set(id, utilizationById.get(id)!)
+      excluded.add(id)
+    }
+  }
+
+  return {
+    assigned: outEdges.map(() => 0),
+    overflow: demand,
+    totalCapacity: 0,
+    excludedIds: excluded,
+    attemptedUtilization,
+  }
 }
 
 function statusForUtilization(utilization: number): Status {
@@ -111,6 +219,7 @@ export function simulateAt(
   tSec: number,
 ): SimSnapshot {
   const order = topoOrder(nodes, edges)
+  const nodesById = new Map(nodes.map((n) => [n.id, n]))
   const inEdgesByTarget = new Map<string, GraphEdge[]>(nodes.map((n) => [n.id, []]))
   const outEdgesBySource = new Map<string, GraphEdge[]>(nodes.map((n) => [n.id, []]))
 
@@ -121,6 +230,8 @@ export function simulateAt(
 
   const edgeRps = new Map<string, number>()
   const edgeFraction = new Map<string, number>()
+  const excludedEdgeIds = new Set<string>()
+  const forcedTargetUtilization = new Map<string, number>()
   const nodeStats = new Map<string, NodeStat>()
   const samplesBefore = new Map<string, LatencySample[]>()
   const offeredRps = scenario.trafficAt(tSec, scenario.durationSec)
@@ -136,7 +247,10 @@ export function simulateAt(
 
     if (node.kind === 'server' || node.kind === 'db') {
       const spec = SIZE_SPECS[node.kind][node.size ?? 'small']
-      utilization = spec.capacity > 0 ? incomingRps / spec.capacity : 0
+      // A server the balancer just evicted still reads as dead — it isn't "healthy", it's cut off.
+      const forced = forcedTargetUtilization.get(node.id)
+
+      utilization = forced ?? (spec.capacity > 0 ? incomingRps / spec.capacity : 0)
       // At or past capacity the node is dead, not degraded: it forwards nothing further.
       acceptedRps = utilization >= DEAD_UTILIZATION ? 0 : incomingRps
       const clamped = Math.min(utilization, MAX_UTILIZATION_FOR_LATENCY)
@@ -147,6 +261,16 @@ export function simulateAt(
       latencyMs = CLIENT_LATENCY_MS
     }
 
+    const fanOutResult = outEdges.length > 0 ? resolveFanOut(node, outEdges, acceptedRps, tSec, nodesById) : null
+
+    if (node.kind === 'loadBalancer' && fanOutResult) {
+      acceptedRps = incomingRps - fanOutResult.overflow
+
+      if (node.strategy === 'least-connections') {
+        utilization = fanOutResult.totalCapacity > 0 ? incomingRps / fanOutResult.totalCapacity : 0
+      }
+    }
+
     nodeStats.set(node.id, {
       incomingRps,
       acceptedRps,
@@ -155,12 +279,21 @@ export function simulateAt(
       status: statusForUtilization(utilization),
     })
 
-    if (outEdges.length > 0) {
-      const weights = edgeFanOutWeights(outEdges, tSec)
+    if (fanOutResult) {
       outEdges.forEach((e, i) => {
-        edgeFraction.set(e.id, weights[i])
-        edgeRps.set(e.id, acceptedRps * weights[i])
+        edgeFraction.set(e.id, acceptedRps > 0 ? fanOutResult.assigned[i] / acceptedRps : 0)
+        edgeRps.set(e.id, fanOutResult.assigned[i])
       })
+
+      for (const edgeId of fanOutResult.excludedIds) {
+        excludedEdgeIds.add(edgeId)
+        const edge = outEdges.find((e) => e.id === edgeId)
+        const attempted = fanOutResult.attemptedUtilization.get(edgeId)
+
+        if (edge && attempted != null) {
+          forcedTargetUtilization.set(edge.target, Math.max(forcedTargetUtilization.get(edge.target) ?? 0, attempted))
+        }
+      }
     }
 
     const survival = incomingRps > 0 ? acceptedRps / incomingRps : 1
@@ -189,7 +322,7 @@ export function simulateAt(
   for (const e of edges) {
     const rps = edgeRps.get(e.id) ?? 0
     const sourceStat = nodeStats.get(e.source)
-    edgeStats[e.id] = { rps, status: sourceStat?.status ?? 'good' }
+    edgeStats[e.id] = { rps, status: sourceStat?.status ?? 'good', excluded: excludedEdgeIds.has(e.id) }
   }
 
   return {

@@ -1,8 +1,24 @@
-import type { NodeKind, Size, SizeSpec } from './types'
+import type { LbStrategy, NodeKind, Size, SizeSpec } from './types'
 
 export const LB_LATENCY_MS = 2
 
 export const CLIENT_LATENCY_MS = 0
+
+export const DEFAULT_LB_STRATEGY: LbStrategy = 'round-robin'
+
+export const LB_STRATEGIES: LbStrategy[] = ['round-robin', 'weighted', 'least-connections']
+
+export const LB_STRATEGY_LABEL: Record<LbStrategy, string> = {
+  'round-robin': 'Round Robin',
+  weighted: 'Weighted',
+  'least-connections': 'Least Connections',
+}
+
+export const LB_STRATEGY_DESCRIPTION: Record<LbStrategy, string> = {
+  'round-robin': 'Splits traffic evenly across every connected server, ignoring size and current load.',
+  weighted: "Splits traffic proportional to each server's capacity. Still blind to overload — a dying server keeps getting its fixed share.",
+  'least-connections': "Fills each server up to its own capacity first. Once every server is full, extra traffic fails at the balancer instead of killing a server.",
+}
 
 /** Every number here is the one true source — shown to the user, never hidden. */
 export const SIZE_SPECS: Record<'server' | 'db', Record<Size, SizeSpec>> = {

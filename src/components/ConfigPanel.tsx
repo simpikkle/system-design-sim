@@ -1,6 +1,6 @@
 import { useGraphStore } from '../store/graphStore'
 import { useSimStore } from '../store/simStore'
-import { SIZE_SPECS } from '../simulation/specs'
+import { DEFAULT_LB_STRATEGY, LB_STRATEGIES, LB_STRATEGY_DESCRIPTION, LB_STRATEGY_LABEL, SIZE_SPECS } from '../simulation/specs'
 import type { Size } from '../simulation/types'
 import { ClientIcon, DbIcon, LoadBalancerIcon, ServerIcon } from './icons'
 
@@ -113,8 +113,23 @@ export function ConfigPanel() {
       {node.data.kind === 'loadBalancer' && (
         <div>
           <span className="mb-1 block text-[11px] font-medium text-ink-muted">Strategy</span>
-          <div className="rounded-md border border-accent-dim bg-accent-dim/40 px-2.5 py-1.5 text-[13px] text-ink">Round robin</div>
-          <p className="mt-1 text-[11px] text-ink-faint">Splits incoming traffic evenly across every connected server. More strategies land later.</p>
+          <div className="flex flex-col gap-1.5">
+            {LB_STRATEGIES.map((strategy) => (
+              <button
+                key={strategy}
+                disabled={locked}
+                onClick={() => updateNodeData(node.id, { strategy })}
+                className={`rounded-md border px-2.5 py-1.5 text-left font-display text-[12px] font-medium transition-colors disabled:opacity-50 ${
+                  (node.data.strategy ?? DEFAULT_LB_STRATEGY) === strategy
+                    ? 'border-accent bg-accent-dim text-ink'
+                    : 'border-surface-border bg-surface-2 text-ink-muted hover:border-ink-faint'
+                }`}
+              >
+                {LB_STRATEGY_LABEL[strategy]}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-ink-faint">{LB_STRATEGY_DESCRIPTION[node.data.strategy ?? DEFAULT_LB_STRATEGY]}</p>
         </div>
       )}
 

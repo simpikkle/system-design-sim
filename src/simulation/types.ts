@@ -4,11 +4,15 @@ export type Size = 'small' | 'medium' | 'large'
 
 export type Status = 'good' | 'warning' | 'critical'
 
+export type LbStrategy = 'round-robin' | 'weighted' | 'least-connections'
+
 export interface GraphNode {
   id: string
   kind: NodeKind
   name: string
   size?: Size
+  /** only meaningful for kind: 'loadBalancer'; defaults to 'round-robin' when absent */
+  strategy?: LbStrategy
 }
 
 export interface GraphEdge {
@@ -36,6 +40,8 @@ export interface NodeStat {
 export interface EdgeStat {
   rps: number
   status: Status
+  /** true when the balancer has cut this edge from rotation because its share would kill the target */
+  excluded: boolean
 }
 
 export interface SimSnapshot {
